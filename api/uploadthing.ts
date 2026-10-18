@@ -1,3 +1,4 @@
+import express from "express";
 import { createRouteHandler } from "uploadthing/express";
 import { createUploadthing, type FileRouter } from "uploadthing/server";
 
@@ -29,19 +30,35 @@ export const uploadRouter = {
 
 export type OurFileRouter = typeof uploadRouter;
 
-const uploadthingHandler = createRouteHandler({
-  router: uploadRouter,
-  config: {
-    token: process.env.UPLOADTHING_TOKEN,
-    // callbackUrl is auto-detected from the request; Uploadthing POSTs the
-    // upload-complete webhook to this same /api/uploadthing path.
-  },
-});
+/**
+ * Create an Express app that mounts the Uploadthing route handler at
+ * /api/uploadthing. Express strips the mount prefix before passing the
+ * request to the router, so the router's internal "/" route matches.
+ */
+let app: express.Express | null = null;
+
+function getApp(): express.Express {
+  if (!app) {
+    app = express();
+    app.use(
+      "/api/uploadthing",
+      createRouteHandler({
+        router: uploadRouter,
+        config: {
+          token: process.env.UPLOADTHING_TOKEN,
+          // callbackUrl is auto-detected from the request; Uploadthing POSTs the
+          // upload-complete webhook to this same /api/uploadthing path.
+        },
+      })
+    );
+  }
+  return app;
+}
 
 /**
- * Vercel Node functions receive plain Node req/res. The Express router from
- * uploadthing/express handles both, but we add CORS so the Vite dev server
- * (localhost:5173) can call it while `vercel dev` runs on :3000.
+ * Vercel Node functions receive plain Node req/res. We route through the
+ * Express app so path matching works correctly (Vercel sends the full
+ * /api/uploadthing path, Express strips it before the uploadthing router).
  */
 export default function uploadThingHandler(req: any, res: any) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -54,5 +71,12 @@ export default function uploadThingHandler(req: any, res: any) {
     return;
   }
 
-  return (uploadthingHandler as any)(req, res);
+  try {
+    getApp()(req, res);
+  } catch (err) {
+    console.error("[uploadthing] handler error", err);
+    if (!res.writableEnded) {
+      res.status(500).json({ error: "internal server error" });
+    }
+  }
 }
