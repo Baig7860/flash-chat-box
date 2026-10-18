@@ -61,7 +61,7 @@ function fileTypeOf(mime: string): MessageType {
 async function removeExpired(room: string, id: string, message: Message | null) {
   try {
     if (message?.file?.key) {
-      await utapi.deleteFile(message.file.key).catch(() => {
+      await utapi.deleteFiles({ fileKeys: [message.file.key] }).catch(() => {
         /* best-effort; Uploadthing retention policy applies anyway */
       });
     }
@@ -76,6 +76,23 @@ function setCorsHeaders(res: any) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+}
+
+async function parseBody(req: any): Promise<any> {
+  return new Promise((resolve, reject) => {
+    let body = "";
+    req.on("data", (chunk: any) => {
+      body += chunk;
+    });
+    req.on("end", () => {
+      try {
+        resolve(JSON.parse(body));
+      } catch {
+        reject(new Error("invalid json"));
+      }
+    });
+    req.on("error", reject);
+  });
 }
 
 export default async function messagesHandler(req: any, res: any) {
@@ -116,7 +133,7 @@ export default async function messagesHandler(req: any, res: any) {
   if (req.method === "POST") {
     let body: { room?: string; nickname?: string; text?: string; file?: StoredFile | null };
     try {
-      body = await req.json();
+      body = await parseBody(req);
     } catch {
       res.status(400).json({ ok: false, error: "invalid json" });
       return;
