@@ -1,23 +1,31 @@
 import { useState } from "react";
 import Welcome from "./components/Welcome";
 import Chat from "./components/Chat";
-import { DEFAULT_ROOM } from "./lib/api";
-
-const STORAGE_NICKNAME = "flashbox:nickname";
+import { DEFAULT_ROOM, STORAGE_NICKNAME } from "./lib/api";
 
 export default function App() {
-  const savedNickname = localStorage.getItem(STORAGE_NICKNAME);
-  const [joined, setJoined] = useState<{ nickname: string } | null>(
-    savedNickname ? { nickname: savedNickname } : null,
+  const [nickname, setNickname] = useState<string | null>(() =>
+    localStorage.getItem(STORAGE_NICKNAME),
   );
 
-  return joined ? (
-    <Chat room={DEFAULT_ROOM} nickname={joined.nickname} />
-  ) : (
+  if (nickname) {
+    return (
+      <Chat
+        room={DEFAULT_ROOM}
+        nickname={nickname}
+        onLeave={() => {
+          localStorage.removeItem(STORAGE_NICKNAME);
+          setNickname(null);
+        }}
+      />
+    );
+  }
+
+  return (
     <Welcome
-      onJoin={(nickname) => {
-        localStorage.setItem(STORAGE_NICKNAME, nickname);
-        setJoined({ nickname });
+      onJoin={(name) => {
+        localStorage.setItem(STORAGE_NICKNAME, name);
+        setNickname(name);
       }}
     />
   );

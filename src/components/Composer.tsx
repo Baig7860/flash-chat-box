@@ -1,7 +1,8 @@
-import { useRef, useState } from "react";
-import { Paperclip, Send, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ArrowUp, Paperclip, X } from "lucide-react";
 import { useUploadThing } from "../lib/uploadthing-client";
-import { sendMessage, readableSize, type Message, type StoredFile } from "../lib/api";
+import { readableSize, sendMessage, type Message, type StoredFile } from "../lib/api";
+import FileGlyph from "./FileGlyph";
 
 export interface ComposerProps {
   room: string;
@@ -17,7 +18,8 @@ export default function Composer({ room, nickname, onMessage }: ComposerProps) {
   const [selected, setSelected] = useState<File[]>([]);
   const [progress, setProgress] = useState(0);
   const [uploadError, setUploadError] = useState("");
-  const inputRef = useRef<HTMLTextAreaElement>(null!);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const { startUpload, isUploading } = useUploadThing("media", {
     onUploadProgress: (p) => setProgress(p),
@@ -34,17 +36,25 @@ export default function Composer({ room, nickname, onMessage }: ComposerProps) {
             mime: r.type,
           } as StoredFile);
           onMessage(message);
-        } catch (err) {
-          setUploadError("Failed to save a file to the chat.");
+        } catch {
+          setUploadError("That file uploaded but couldn't be added to the room.");
         }
       }
       setSelected([]);
-      inputRef.current?.focus();
+      textareaRef.current?.focus();
     },
     onUploadError: (err) => {
       setUploadError(err.message || "Upload failed.");
     },
   });
+
+  // Grow the input with its content, up to a comfortable ceiling.
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "0px";
+    el.style.height = `${Math.min(el.scrollHeight, 132)}px`;
+  }, [text]);
 
   const onFilesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
@@ -63,8 +73,9 @@ export default function Composer({ room, nickname, onMessage }: ComposerProps) {
     try {
       const { message } = await sendMessage(room, nickname, body, null);
       onMessage(message);
-    } catch (err) {
-      setUploadError("Could not send message.");
+    } catch {
+      setText(body);
+      setUploadError("Couldn't send that message. Try again.");
     }
   };
 
@@ -72,115 +83,120 @@ export default function Composer({ room, nickname, onMessage }: ComposerProps) {
     if (selected.length === 0) return;
     try {
       await startUpload(selected);
-    } catch (err) {
-      setUploadError("Upload did not start.");
+    } catch {
+      setUploadError("Upload didn't start.");
     }
   };
 
-  const disabled = isUploading || (!text.trim() && selected.length === 0);
+  // One button that sends everything you've staged: text first, then files.
+  const handleSend = async () => {
+    if (isUploading) return;
+    if (text.trim()) await sendText();
+    if (selected.length) await sendFiles();
+  };
+
+  const canSend = !isUploading && (!!text.trim() || selected.length > 0);
 
   return (
     <footer
-      className="shrink-0 flex flex-col gap-2 bg-white border-t border-slate-200 p-3 sm:p-4 safe-bottom z-20 backdrop-blur-md backdrop-saturate-150 bg-white/95"
+      className="glass relative z-20 shrink-0 border-t border-line px-3 pt-2.5 sm:px-4"
+      style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 10px)" }}
     >
       {uploadError && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-2 text-xs text-red-700">
+        <p
+          role="alert"
+          className="mb-2 rounded-xl border border-danger/25 bg-danger-soft px-3 py-2 text-[12px] font-medium text-danger"
+        >
           {uploadError}
-        </div>
+        </p>
       )}
+
       {isUploading && (
-        <div className="flex items-center gap-2">
-          <div className="w-20 h-1.5 rounded-full bg-gray-100 overflow-hidden">
-            <div
-              className="h-full bg-blue-500 animate-pulse-fast"
-              style={{ width: `${Math.max(progress, 5)}%` }}
+        <div className="mb-2 flex items-center gap-2">
+          <span className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-brand-100">
+            <span
+              className="brand-surface absolute inset-y-0 left-0 rounded-full transition-[width] duration-200"
+              style={{ width: `${Math.max(progress, 4)}%` }}
             />
-          </div>
-          <span className="text-[10px] text-slate-500">Uploading…</span>
+          </span>
+          <span className="text-[11px] font-semibold tabular-nums text-ink-soft">
+            {Math.round(progress)}%
+          </span>
         </div>
       )}
+
+      {selected.length > 0 && (
+        <div className="mb-2 flex gap-2 overflow-x-auto no-scrollbar">
+          {selected.map((file, index) => (
+            <div
+              key={`${file.name}-${file.size}-${index}`}
+              className="flex shrink-0 items-center gap-2 rounded-xl border border-line bg-white px-2.5 py-1.5 text-xs shadow-sm"
+            >
+              <FileGlyph mime={file.type} className="h-3.5 w-3.5 text-brand-600" />
+              <span className="max-w-[140px] truncate font-medium text-ink">{file.name}</span>
+              <span className="text-ink-faint">{readableSize(file.size)}</span>
+              <button
+                type="button"
+                onClick={() => removeFile(index)}
+                aria-label={`Remove ${file.name}`}
+                className="grid h-5 w-5 place-items-center rounded-full text-ink-faint transition hover:bg-danger-soft hover:text-danger"
+              >
+                <X className="h-3 w-3" strokeWidth={2.5} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="flex items-end gap-2">
-        <label className="shrink-0">
-          <input
-            id="file-input"
-            type="file"
-            multiple
-            accept={ACCEPT}
-            className="sr-only"
-            onChange={onFilesChange}
-          />
-          <button
-            type="button"
-            onClick={() => document.getElementById("file-input")?.click()}
-            disabled={isUploading}
-            className="w-9 h-9 rounded-lg flex items-center justify-center text-slate-500 hover:text-blue-600 hover:bg-blue-50 disabled:opacity-40 transition"
-            title="Attach photo, video or document"
-          >
-            <Paperclip className="h-5 w-5" />
-          </button>
-        </label>
+        <input
+          ref={fileRef}
+          type="file"
+          multiple
+          accept={ACCEPT}
+          className="sr-only"
+          onChange={onFilesChange}
+        />
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          disabled={isUploading}
+          aria-label="Attach a photo, video or document"
+          title="Attach a photo, video or document"
+          className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-ink-soft transition hover:bg-brand-50 hover:text-brand-600 disabled:opacity-40"
+        >
+          <Paperclip className="h-[18px] w-[18px]" />
+        </button>
 
         <textarea
-          ref={inputRef}
+          ref={textareaRef}
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="Type a message…"
           rows={1}
           maxLength={4000}
           disabled={isUploading}
-          className="flex-1 min-h-[26px] sm:min-h-[44px] md:min-h-[52px] px-3.5 py-2 rounded-2xl border border-slate-200 bg-gray-50 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none transition"
+          aria-label="Message"
+          className="max-h-[132px] flex-1 resize-none overflow-y-auto rounded-2xl border border-line bg-paper px-4 py-2.5 text-[15px] leading-6 text-ink outline-none transition placeholder:text-ink-faint focus:border-brand-300 focus:bg-white focus:ring-4 focus:ring-brand-100 disabled:opacity-60"
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
-              sendText();
+              handleSend();
             }
           }}
         />
 
         <button
-          onClick={sendFiles}
-          disabled={disabled}
-          className="ml-2 shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 disabled:opacity-60 transition shadow shadow-blue-200/40"
+          type="button"
+          onClick={handleSend}
+          disabled={!canSend}
+          aria-label="Send"
           title="Send"
+          className="brand-surface grid h-10 w-10 shrink-0 place-items-center rounded-full text-white shadow-[0_10px_20px_-10px_rgba(78,49,214,0.85)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:bg-none disabled:bg-ink/10 disabled:text-ink-faint disabled:shadow-none"
         >
-          <Send className="h-5 w-5" />
+          <ArrowUp className="h-5 w-5" strokeWidth={2.5} />
         </button>
       </div>
-
-      {selected.length > 0 && (
-        <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1">
-          {selected.map((file, index) => (
-            <div
-              key={`${file.name}-${file.size}-${index}`}
-              className="flex shrink-0 items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-slate-200 bg-gray-50 text-xs"
-            >
-              <span className="shrink-0">{fileIcon(file.type)}</span>
-              <span className="truncate text-slate-700">{file.name}</span>
-              <span className="shrink-0 text-slate-400">{readableSize(file.size)}</span>
-              <button
-                onClick={() => removeFile(index)}
-                className="w-4 h-4 rounded-full flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 transition"
-              >
-                <X className="h-3 w-3" strokeWidth="1.5" />
-              </button>
-            </div>
-          ))}
-          <button
-            onClick={sendFiles}
-            disabled={isUploading}
-            className="shrink-0 px-3 py-1.5 rounded-xl bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 disabled:opacity-60 transition"
-          >
-            Upload {selected.length}
-          </button>
-        </div>
-      )}
     </footer>
   );
-}
-
-function fileIcon(mime: string) {
-  if (mime.startsWith("image/")) return "🖼️";
-  if (mime.startsWith("video/")) return "🎬";
-  if (mime.startsWith("audio/")) return "🎵";
-  return "📄";
 }

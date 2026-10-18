@@ -1,11 +1,10 @@
 import { useState } from "react";
-import { fetchMessages, DEFAULT_ROOM } from "../lib/api";
+import { DEFAULT_ROOM, fetchMessages } from "../lib/api";
+import BoltMark from "./Brand";
 
 export type WelcomeProps = {
   onJoin: (nickname: string) => void;
 };
-
-const STORAGE_NICKNAME = "flashbox:nickname";
 
 export default function Welcome({ onJoin }: WelcomeProps) {
   const [nickname, setNickname] = useState("");
@@ -14,66 +13,72 @@ export default function Welcome({ onJoin }: WelcomeProps) {
 
   const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();
+    const name = nickname.trim();
+    if (!name || loading) return;
     setError("");
     setLoading(true);
     try {
+      // Confirm the room is reachable before dropping someone into it.
       await fetchMessages(DEFAULT_ROOM);
-      localStorage.setItem(STORAGE_NICKNAME, nickname.trim());
-      onJoin(nickname.trim());
-    } catch (err) {
-      setError("Couldn't reach the chat. Make sure the API is running (`vercel dev`).");
-    } finally {
+      onJoin(name);
+    } catch {
+      setError("Can't reach the room. Check your connection and try again.");
       setLoading(false);
     }
   };
 
   return (
-    <div className="safe-top min-h-[100dvh] w-full flex items-center justify-center bg-gray-100 px-4 py-6">
-      <div className="max-w-md w-full space-y-4">
-        <div className="flex flex-col items-center gap-3">
-          <img
-            src="/icon.png"
-            alt="Flashbox"
-            className="w-16 h-16 rounded-2xl shadow-lg shadow-blue-200"
-          />
-          <div className="text-center">
-            <h1 className="text-3xl font-bold tracking-tight">Flashbox</h1>
-          </div>
+    <div
+      className="flex min-h-[100dvh] w-full items-center justify-center bg-paper px-5"
+      style={{
+        paddingTop: "calc(env(safe-area-inset-top) + 40px)",
+        paddingBottom: "calc(env(safe-area-inset-bottom) + 40px)",
+      }}
+    >
+      <div className="w-full max-w-[380px] animate-rise motion-reduce:animate-none">
+        <div className="flex flex-col items-center text-center">
+          <BoltMark className="h-16 w-16" iconClassName="h-7 w-7" />
+          <h1 className="brand-text mt-5 text-[34px] font-extrabold leading-none tracking-tight">
+            Flashbox
+          </h1>
+          <p className="mt-3 max-w-[290px] text-[14px] leading-relaxed text-ink-soft">
+            A shared room where every message disappears after 24 hours.
+          </p>
         </div>
 
-        <form onSubmit={handleJoin} className="space-y-3 bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-          <div className="space-y-2">
-            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              Your nickname
-            </label>
-            <input
-              autoFocus
-              className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
-              value={nickname}
-              onChange={(e) => setNickname(e.target.value)}
-              placeholder="e.g. Alex"
-              maxLength={32}
-            />
-          </div>
+        <form
+          onSubmit={handleJoin}
+          className="mt-8 rounded-3xl border border-line bg-surface p-5 shadow-[0_24px_60px_-40px_rgba(40,32,120,0.5)]"
+        >
+          <label htmlFor="nickname" className="text-[12px] font-semibold text-ink">
+            Your name
+          </label>
+          <input
+            id="nickname"
+            autoFocus
+            autoComplete="off"
+            value={nickname}
+            onChange={(e) => setNickname(e.target.value)}
+            placeholder="Alex"
+            maxLength={32}
+            className="mt-2 w-full rounded-2xl border border-line bg-paper px-4 py-3 text-[15px] text-ink outline-none transition placeholder:text-ink-faint focus:border-brand-300 focus:bg-white focus:ring-4 focus:ring-brand-100"
+          />
 
           {error && (
-            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            <p
+              role="alert"
+              className="mt-3 rounded-xl border border-danger/25 bg-danger-soft px-3 py-2 text-[12px] font-medium text-danger"
+            >
               {error}
-            </div>
+            </p>
           )}
 
           <button
+            type="submit"
             disabled={loading || !nickname.trim()}
-            className="w-full flex items-center justify-center gap-2 px-4 py-3 text-base font-semibold text-white rounded-xl bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 disabled:opacity-60 transition shadow shadow-blue-200/50"
+            className="brand-surface mt-4 flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3 text-[15px] font-bold text-white shadow-[0_14px_30px_-14px_rgba(78,49,214,0.85)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:bg-none disabled:bg-ink/10 disabled:text-ink-faint disabled:shadow-none"
           >
-            {loading ? (
-              <svg className="h-5 w-5 animate-spin" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-              </svg>
-            ) : (
-              <span>Enter chat</span>
-            )}
+            {loading ? "Opening…" : "Enter room"}
           </button>
         </form>
       </div>
