@@ -61,7 +61,7 @@ function fileTypeOf(mime: string): MessageType {
 async function removeExpired(room: string, id: string, message: Message | null) {
   try {
     if (message?.file?.key) {
-      await utapi.deleteFiles({ fileKeys: [message.file.key] }).catch(() => {
+      await utapi.deleteFiles([message.file.key]).catch(() => {
         /* best-effort; Uploadthing retention policy applies anyway */
       });
     }

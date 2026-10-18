@@ -42,7 +42,7 @@ export default async function cleanupHandler(req: any, res: any) {
 
     if (message.file?.key) {
       try {
-        await utapi.deleteFiles({ fileKeys: [message.file.key] });
+        await utapi.deleteFiles([message.file.key]);
       } catch {
         /* best-effort */
       }
