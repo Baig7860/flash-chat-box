@@ -1,0 +1,46 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+    text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-gray-50 text-slate-900 selection:bg-blue-200 selection:text-blue-900;
+    margin: 0;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+      "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  #root {
+    min-height: 100dvh;
+  }
+  /* Hide scrollbar for chrome, keep function */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+@layer components {
+  .bubble-incoming {
+    @apply bg-gray-200 text-slate-900 rounded-2xl rounded-tr-sm px-3 py-2 inline-block max-w-[75%] break-words mb-1;
+  }
+  .bubble-outgoing {
+    @apply bg-blue-500 text-white rounded-2xl rounded-tl-sm px-3 py-2 inline-block max-w-[75%] break-words mb-1 ml-auto;
+  }
+  .media {
+    @apply w-full rounded-xl overflow-hidden border border-white/20;
+  }
+  .safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
